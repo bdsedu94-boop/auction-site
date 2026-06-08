@@ -328,7 +328,55 @@ const dday = d => {
   if (diff === 0) return "오늘";
   return `D-${diff}`;
 };
-const PROPERTIES = [{
+// ── 줍줍파인더 API 연동 ──────────────────────────────────────
+const API_BASE = "https://jupjup-finder-production.up.railway.app";
+
+// API 데이터 → 화면 형식으로 변환
+function apiItemToProperty(item) {
+  const regionCode = item.zone || "";
+  const region = regionCode === "capital" ? "reg" : regionCode === "non_capital" ? "nreg" : "local";
+  return {
+    id: item.caseId || item.productId,
+    caseId: item.caseId,
+    region,
+    type: item.propertyType || "아파트",
+    address: item.address || "",
+    caseNo: item.caseNo || "",
+    appraisedValue: (item.appraise || 0) * 10000,
+    minBid: (item.minBid || 0) * 10000,
+    recommendedBid: (item.expectedBidPrice || item.minBid || 0) * 10000,
+    officialPrice: item.officialPriceWon || null,
+    area: item.area || 0,
+    floor: 0,
+    totalFloor: 0,
+    rooms: 0,
+    baths: 0,
+    auctionDate: item.saleDate || "",
+    failCount: item.failCount || 0,
+    ltvRate: 70,
+    transferRequired: false,
+    monthlyRent: 0,
+    deposit: 0,
+    tags: item.sourceListBadges || [],
+    desc: item.rights || "",
+    thumbnailUrl: item.thumbnailUrl || null,
+    searchShortScore: item.searchShortScore || 0,
+    expectedNetProfit: item.expectedNetProfit || 0,
+    courtName: item.courtName || "",
+  };
+}
+
+// API에서 매물 목록 가져오기
+async function fetchProperties(params = {}) {
+  const query = new URLSearchParams({ pageSize: 50, ...params }).toString();
+  const res = await fetch(`${API_BASE}/api/auction/search?${query}`);
+  if (!res.ok) throw new Error("API 오류");
+  const data = await res.json();
+  return (data.items || []).map(apiItemToProperty);
+}
+
+// 초기 샘플 데이터 (API 로딩 전 표시)
+let PROPERTIES = [{
   id: 1,
   region: "reg",
   type: "아파트",
@@ -2496,9 +2544,29 @@ function AllTab({
   const [specials, setSpecials] = useState([]);
   const [showMore, setShowMore] = useState(false);
   const [pageSize, setPageSize] = useState(20);
+  const [apiProperties, setApiProperties] = useState(PROPERTIES);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchProperties({ pageSize: 100 })
+      .then(data => {
+        if (data.length > 0) {
+          PROPERTIES = data;
+          setApiProperties(data);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        setApiError("서버 연결 실패 — 샘플 데이터 표시 중");
+        setLoading(false);
+      });
+  }, []);
+
   const toggleSpecial = v => setSpecials(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v]);
   const filtered = useMemo(() => {
-    let list = PROPERTIES.filter(p => {
+    let list = apiProperties.filter(p => {
       if (regionF && p.region !== regionF) return false;
       if (typeF && p.type !== typeF) return false;
       if (failF === "0" && p.failCount !== 0) return false;
@@ -2520,7 +2588,9 @@ function AllTab({
     if (sort === "caseNo") list = [...list].sort((a, b) => a.caseNo.localeCompare(b.caseNo) * dir);
     return list.slice(0, pageSize);
   }, [regionF, typeF, sort, sortDir, failF, ltvF, minPriceF, maxPriceF, officialF, specials, pageSize]);
-  const total = PROPERTIES.filter(p => (!regionF || p.region === regionF) && (!typeF || p.type === typeF)).length;
+  const total = apiProperties.filter(p => (!regionF || p.region === regionF) && (!typeF || p.type === typeF)).length;
+  if (loading) return /*#__PURE__*/React.createElement("div", {style:{textAlign:"center",padding:"60px",color:"#888",fontSize:16}}, "📡 줍줍파인더에서 매물 데이터를 불러오는 중...");
+  if (apiError) return /*#__PURE__*/React.createElement("div", {style:{textAlign:"center",padding:"20px",color:"#e74c3c",fontSize:14}}, apiError);
   const SortTh = ({
     label,
     key
