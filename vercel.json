@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://jupjup-finder-production.up.railway.app/api/:path*"
+    }
+  ]
+}
