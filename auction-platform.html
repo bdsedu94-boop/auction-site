@@ -861,14 +861,13 @@ function getConsultDetail(p) {
   const noH = p.housing === "생애최초" || p.housing === "무주택";
   const oneH = p.housing === "1주택";
   const multi = !noH && !oneH;
-  const isFirst = p.housing === "생애최초";
-  const bigInv = noH && total >= 150000000; // 1.5억 이상
   const CAP = 500000000;
+  const MIN_LOAN = 50000000; // 최소 대출금 5천만원
+
   function fmtA(v) {
     v = Math.min(v, CAP);
     if (v >= 100000000) {
-      const a = Math.floor(v / 100000000),
-        r = v % 100000000;
+      const a = Math.floor(v / 100000000), r = v % 100000000;
       if (!r) return a + "억원";
       if (r % 10000000 === 0) return a + "억 " + r / 10000000 + "천만원";
       return a + "억 " + Math.round(r / 10000).toLocaleString() + "만원";
@@ -876,115 +875,127 @@ function getConsultDetail(p) {
     if (v % 10000000 === 0) return v / 10000000 + "천만원";
     return Math.round(v / 10000).toLocaleString() + "만원";
   }
-  function cLtv(downPct, ltvPct, minLoan = 50000000) {
-    const rawBid = Math.round(total / downPct / 1000000) * 1000000;
-    const loanAmt = rawBid * ltvPct;
-    if (loanAmt < minLoan) return {
-      ok: false,
-      bid: Math.min(total, CAP),
-      label: "올현금"
-    };
-    return {
-      ok: true,
-      bid: Math.min(rawBid, CAP),
-      label: "LTV " + Math.round(ltvPct * 100) + "%"
-    };
-  }
 
   // ── 지역별 가능 여부 ──
-  const suit = getSuitability(p);
-  const regObj = suit.reg === "O" ? {
-    st: "O",
-    lb: "가능",
-    nt: ""
-  } : suit.reg === "T" ? {
-    st: "T",
-    lb: "조건부",
-    nt: "신용대출 또는 현금 활용"
-  } : {
-    st: "X",
-    lb: "불가",
-    nt: ""
-  };
-  const nregObj = suit.nreg === "O" ? {
-    st: "O",
-    lb: "가능",
-    nt: ""
-  } : multi ? {
-    st: "T",
-    lb: "조건부",
-    nt: "신용/현금 + 공시가 1억이하"
-  } : {
-    st: "T",
-    lb: "조건부",
-    nt: "신용대출 또는 현금 활용"
-  };
-  const localObj = multi ? {
-    st: "T",
-    lb: "조건부",
-    nt: "공시가 2억이하"
-  } : {
-    st: "O",
-    lb: "가능",
-    nt: ""
-  };
+  // 수도권 규제: 무주택+전입O → 가능 / 무주택+전입X → 조건부 / 1주택·다주택 → 불가
+  const regSt = noH ? (tY ? "O" : "T") : "X";
+  // 수도권 비규제: 무주택 → O or T / 1주택 → 조건부 / 다주택 → 조건부(공시가1억이하)
+  const nregSt = noH ? (tY ? "O" : "T") : "T";
+  // 비수도권: 무주택·1주택 → 가능 / 다주택 → 조건부(공시가2억이하)
+  const localSt = multi ? "T" : "O";
+
+  const regObj = regSt === "O" ? {st:"O",lb:"가능",nt:""}
+    : regSt === "T" ? {st:"T",lb:"조건부",nt:"신용대출 또는 현금 활용"}
+    : {st:"X",lb:"불가",nt:""};
+
+  const nregObj = nregSt === "O" ? {st:"O",lb:"가능",nt:""}
+    : multi ? {st:"T",lb:"조건부",nt:"신용/현금 + 공시가 1억이하"}
+    : oneH ? {st:"T",lb:"조건부",nt:"신용대출 또는 현금 활용"}
+    : {st:"T",lb:"조건부",nt:"신용대출 또는 현금 활용"};
+
+  const localObj = multi ? {st:"T",lb:"조건부",nt:"공시가 2억이하"}
+    : {st:"O",lb:"가능",nt:""};
 
   // ── 수도권 규제 입찰가 ──
+  // 무주택+전입O: 다운페이 30%, LTV 70%, 최소대출 5천만원
   function bidReg() {
     if (!noH) return "불가";
-    if (bigInv) return fmtA(Math.min(total, CAP)) + " (올현금 추천)";
-    if (!tY) return fmtA(Math.min(total, CAP)) + " (신용/현금·조건부)";
-    const s = cLtv(0.3, 0.7);
-    return s.ok ? fmtA(s.bid) + " (" + s.label + ")" : fmtA(Math.min(total, CAP)) + " (올현금)";
+    if (!tY) {
+      return cr > 0
+        ? fmtA(Math.min(total, CAP)) + " (현금+신용·조건부)"
+        : fmtA(Math.min(total, CAP)) + " (올현금·조건부)";
+    }
+    const rawBid = Math.round(total / 0.3 / 1000000) * 1000000;
+    const loan = rawBid * 0.7;
+    if (loan < MIN_LOAN) return fmtA(Math.min(total, CAP)) + " (올현금)";
+    return fmtA(Math.min(rawBid, CAP)) + " (LTV 70%)";
   }
+
   // ── 수도권 비규제 입찰가 ──
+  // 무주택+전입O: LTV 70% / 무주택+전입X: 올현금/신용 조건부
+  // 1주택: 신용/현금 조건부 / 다주택: 공시가1억이하 조건부
   function bidNreg() {
     if (multi) {
-      return cr === 0 ? "현금+신용대출 합산금액 (조건부·공시가1억이하)" : fmtA(Math.min(total, CAP)) + " (조건부·공시가1억이하)";
+      return cr > 0
+        ? fmtA(Math.min(total, CAP)) + " (조건부·공시가1억이하)"
+        : fmtA(Math.min(total, CAP)) + " (올현금·공시가1억이하)";
     }
-    if (oneH) return fmtA(Math.min(total, CAP)) + " (신용/현금·조건부)";
-    if (bigInv) return fmtA(Math.min(total, CAP)) + " (올현금 추천)";
-    if (!tY) return fmtA(Math.min(total, CAP)) + " (신용/현금·조건부)";
-    const s = cLtv(0.3, 0.7);
-    return s.ok ? fmtA(s.bid) + " (" + s.label + ")" : fmtA(Math.min(total, CAP)) + " (올현금)";
+    if (oneH) {
+      return cr > 0
+        ? fmtA(Math.min(total, CAP)) + " (신용/현금·조건부)"
+        : fmtA(Math.min(total, CAP)) + " (올현금·조건부)";
+    }
+    // 무주택
+    if (!tY) {
+      return cr > 0
+        ? fmtA(Math.min(total, CAP)) + " (신용/현금·조건부)"
+        : fmtA(Math.min(total, CAP)) + " (올현금·조건부)";
+    }
+    const rawBid = Math.round(total / 0.3 / 1000000) * 1000000;
+    const loan = rawBid * 0.7;
+    if (loan < MIN_LOAN) return fmtA(Math.min(total, CAP)) + " (올현금)";
+    return fmtA(Math.min(rawBid, CAP)) + " (LTV 70%)";
   }
+
   // ── 비수도권 입찰가 ──
+  // 최솟값 = max(8,300만원, LTV60% 입찰가)
+  // 최댓값 = max(LTV80% 입찰가, 1억3천만원) — 총투자금 1,660만원 이상 시
+  // 상한: 5억원
   function bidLocal() {
-    if (total < 10000000) return "신용합산 필요";
-    const MIN = 83000000,
-      MAX_STD = 130000000;
-    const l60 = Math.min(Math.round(total / 0.4 / 1000000) * 1000000, CAP);
-    const l80r = Math.min(Math.round(total / 0.2 / 1000000) * 1000000, CAP);
-    const canMin = total >= 16600000;
-    const l80 = canMin ? Math.max(l80r, MAX_STD) : l80r;
-    if (l80 < MIN) return fmtA(Math.min(total, CAP)) + " (올현금)";
-    const minB = Math.max(MIN, l60);
-    let txt = minB === l80 ? fmtA(l80) + " (LTV 80%)" : fmtA(minB) + " ~ " + fmtA(l80);
-    if (multi) txt += " · 공시가2억이하";
+    if (total < 10000000) return "투자금 부족 (신용대출 확인 필요)";
+    const MIN_BID = 83000000;   // 경락잔금대출 최소 입찰가 8,300만원
+    const MAX_STD = 130000000;  // 소액투자자 최대 기준 1억3천만원
+    const MIN_FOR_MAX = 16600000; // 최댓값 기준 적용 조건: 총투자금 1,660만원 이상
+
+    // LTV 60% 기준 입찰가 (다운페이 40%)
+    const bidByL60 = Math.min(Math.round(total / 0.4 / 1000000) * 1000000, CAP);
+    // LTV 80% 기준 입찰가 (다운페이 20%)
+    const bidByL80raw = Math.min(Math.round(total / 0.2 / 1000000) * 1000000, CAP);
+    const canMax = total >= MIN_FOR_MAX;
+    const bidByL80 = canMax ? Math.max(bidByL80raw, MAX_STD) : bidByL80raw;
+
+    if (bidByL80 < MIN_BID) return fmtA(Math.min(total, CAP)) + " (올현금)";
+    const minBid = Math.max(MIN_BID, bidByL60);
+    let txt = minBid === bidByL80
+      ? fmtA(bidByL80) + " (LTV 80%)"
+      : fmtA(minBid) + " ~ " + fmtA(bidByL80);
+    if (multi) txt += " (공시가2억이하 조건부)";
+    else txt += " (LTV 60~80%)";
     return txt;
   }
 
   // ── LTV 기준 레이블 ──
   let ltvLabel;
   if (noH) {
-    ltvLabel = tY ? total >= 150000000 ? "수도권 올현금 추천 · 비수도권 LTV 60~80%" : "수도권 LTV 70% · 비수도권 LTV 60~80%" : "수도권 올현금 (전입필요) · 비수도권 LTV 60~80%";
+    ltvLabel = tY
+      ? "수도권 LTV 70% (전입O) · 비수도권 LTV 60~80%"
+      : "수도권 올현금/신용 (전입필요) · 비수도권 LTV 60~80%";
   } else if (oneH) {
-    ltvLabel = "수도권 비규제 신용/현금 · 비수도권 LTV 60~80%";
+    ltvLabel = "수도권 규제 불가 · 비규제 신용/현금 조건부 · 비수도권 LTV 60~80%";
   } else {
-    ltvLabel = "비수도권 LTV 60~80% (수도권 불가)";
+    ltvLabel = "수도권 불가 · 비수도권 LTV 60~80% (공시가2억이하)";
   }
   if (cr > 0) ltvLabel += " (신용대출 포함)";
 
   // ── 주요 방향 ──
   let primary = "";
   if (noH) {
-    primary = tY ? total >= 150000000 ? "전국 가능 — 수도권 규제지역 빌라 올현금 or 비수도권 LTV 활용" : "전국 가능 — 수도권 규제 포함" : total <= 100000000 ? "수도권 비규제 인천·부천 추천" : "수도권 비규제 + 비수도권 우선";
+    if (tY) {
+      if (total <= 100000000) primary = "→ 수도권 비규제 인천·부천 추천";
+      else if (total <= 300000000) primary = "→ 수도권 규제 포함 전국 가능";
+      else primary = "→ 전국 가능 — 수도권 규제지역 포함";
+    } else {
+      if (total <= 100000000) primary = "→ 수도권 비규제 인천·부천 추천 (전입 후 LTV 활용 권장)";
+      else primary = "→ 수도권 비규제 + 비수도권 우선";
+    }
   } else if (oneH) {
-    const l80 = Math.min(Math.round(total / 0.2 / 1000000) * 1000000, CAP);
-    primary = total > 100000000 ? "수도권 비규제 APT 1순위" : l80 >= 83000000 ? "수도권 비규제 인천·부천 추천" : "지방 위주 추천";
+    const bidL80 = Math.round(total / 0.2 / 1000000) * 1000000;
+    if (bidL80 >= 83000000) primary = "→ 수도권 비규제 APT (인천·경기) 또는 비수도권";
+    else primary = "→ 비수도권(지방) 위주 투자 권장";
   } else {
-    primary = "비수도권(지방) 위주 투자 권장";
+    primary = "→ 비수도권(지방) 위주 투자 — 공시가 2억이하 조건";
   }
+
   return {
     reg: regObj,
     nreg: nregObj,
