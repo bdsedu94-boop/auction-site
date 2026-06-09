@@ -2534,7 +2534,10 @@ function PropertyRow({
 
 // ── 탱크옥션 스타일 AllTab ──
 function AllTab({
-  onDetail
+  onDetail,
+  globalProperties,
+  globalLoading,
+  globalError
 }) {
   const [regionF, setRegionF] = useState("");
   const [typeF, setTypeF] = useState("");
@@ -2548,25 +2551,10 @@ function AllTab({
   const [specials, setSpecials] = useState([]);
   const [showMore, setShowMore] = useState(false);
   const [pageSize, setPageSize] = useState(20);
-  const [apiProperties, setApiProperties] = useState(PROPERTIES);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchProperties({ pageSize: 100 })
-      .then(data => {
-        if (data.length > 0) {
-          PROPERTIES = data;
-          setApiProperties(data);
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        setApiError("서버 연결 실패 — 샘플 데이터 표시 중");
-        setLoading(false);
-      });
-  }, []);
+  // 전달받은 전역 데이터 사용 (탭 전환 시 재요청 없음)
+  const apiProperties = globalProperties || PROPERTIES;
+  const loading = globalLoading;
+  const apiError = globalError;
 
   const toggleSpecial = v => setSpecials(s => s.includes(v) ? s.filter(x => x !== v) : [...s, v]);
   const filtered = useMemo(() => {
@@ -4915,6 +4903,25 @@ function HomeScreen({
   const [profit, setProfit] = useState(null);
   const [detail, setDetail] = useState(null); // { prop, fromRecommend }
 
+  // ── 앱 시작할 때 미리 데이터 불러오기 ──
+  const [globalProperties, setGlobalProperties] = useState(PROPERTIES);
+  const [globalLoading, setGlobalLoading] = useState(true);
+  const [globalError, setGlobalError] = useState(null);
+  useEffect(() => {
+    fetchProperties({ pageSize: 100 })
+      .then(data => {
+        if (data.length > 0) {
+          PROPERTIES = data;
+          setGlobalProperties(data);
+        }
+        setGlobalLoading(false);
+      })
+      .catch(err => {
+        setGlobalError("서버 연결 실패 — 샘플 데이터 표시 중");
+        setGlobalLoading(false);
+      });
+  }, []);
+
   // 물건 클릭 → 상세 페이지
   const openDetail = (prop, fromRecommend = false) => setDetail({
     prop,
@@ -4980,7 +4987,10 @@ function HomeScreen({
     onProfit: setProfit,
     onDetail: p => openDetail(p, true)
   }), tab === "all" && /*#__PURE__*/React.createElement(AllTab, {
-    onDetail: p => openDetail(p, false)
+    onDetail: p => openDetail(p, false),
+    globalProperties: globalProperties,
+    globalLoading: globalLoading,
+    globalError: globalError
   }), tab === "mypage" && /*#__PURE__*/React.createElement(MyTab, {
     profile: profile,
     user: user,
