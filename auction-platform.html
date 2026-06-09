@@ -981,19 +981,19 @@ function getConsultDetail(p) {
   let primary = "";
   if (noH) {
     if (tY) {
-      if (total <= 100000000) primary = "→ 수도권 비규제 인천·부천 추천";
-      else if (total <= 300000000) primary = "→ 수도권 규제 포함 전국 가능";
-      else primary = "→ 전국 가능 — 수도권 규제지역 포함";
+      if (total <= 100000000) primary = "수도권 비규제 인천·부천 추천";
+      else if (total <= 300000000) primary = "수도권 규제 포함 전국 가능";
+      else primary = "전국 가능 — 수도권 규제지역 포함";
     } else {
-      if (total <= 100000000) primary = "→ 수도권 비규제 인천·부천 추천 (전입 후 LTV 활용 권장)";
-      else primary = "→ 수도권 비규제 + 비수도권 우선";
+      if (total <= 100000000) primary = "수도권 비규제 인천·부천 추천 (전입 후 LTV 활용 권장)";
+      else primary = "수도권 비규제 + 비수도권 우선";
     }
   } else if (oneH) {
     const bidL80 = Math.round(total / 0.2 / 1000000) * 1000000;
-    if (bidL80 >= 83000000) primary = "→ 수도권 비규제 APT (인천·경기) 또는 비수도권";
-    else primary = "→ 비수도권(지방) 위주 투자 권장";
+    if (bidL80 >= 83000000) primary = "수도권 비규제 APT (인천·경기) 또는 비수도권";
+    else primary = "비수도권(지방) 위주 투자 권장";
   } else {
-    primary = "→ 비수도권(지방) 위주 투자 — 공시가 2억이하 조건";
+    primary = "비수도권(지방) 위주 투자 — 공시가 2억이하 조건";
   }
 
   return {
@@ -2175,14 +2175,7 @@ function RecommendTab({
       marginBottom: 12,
       color: "#1a1a1a"
     }
-  }, profile.housing, " \xB7 \uD22C\uC790\uAE08 ", total, "\uB9CC\uC6D0", profile.credit > 0 && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 13,
-      fontWeight: 400,
-      color: "#888",
-      marginLeft: 6
-    }
-  }, "+\uC2E0\uC6A9 ", profile.credit.toLocaleString(), "\uB9CC\uC6D0")), cd && /*#__PURE__*/React.createElement("div", {
+  }, profile.housing, " \xB7 ", profile.credit > 0 ? "\ud569\uc0b0 " + total + "\ub9cc\uc6d0 (\ud22c\uc790\uae08 " + (profile.seed || 0).toLocaleString() + "\ub9cc\uc6d0 + \uc2e0\uc6a9 " + (profile.credit || 0).toLocaleString() + "\ub9cc\uc6d0)" : "\ud22c\uc790\uae08 " + total + "\ub9cc\uc6d0"), cd && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1fr 1fr",
