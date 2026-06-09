@@ -981,16 +981,16 @@ function getConsultDetail(p) {
   let primary = "";
   if (noH) {
     if (tY) {
-      if (total <= 100000000) primary = "수도권 비규제 인천·부천 추천";
-      else if (total <= 300000000) primary = "수도권 규제 포함 전국 가능";
-      else primary = "전국 가능 — 수도권 규제지역 포함";
+      if (total >= 150000000) primary = "수도권 규제지역 빌라 올현금 or 비수도권 LTV 활용";
+      else primary = "전국 가능 — 수도권 규제 포함";
     } else {
-      if (total <= 100000000) primary = "수도권 비규제 인천·부천 추천 (전입 후 LTV 활용 권장)";
+      if (total <= 100000000) primary = "수도권 비규제 인천·부천 추천";
       else primary = "수도권 비규제 + 비수도권 우선";
     }
   } else if (oneH) {
     const bidL80 = Math.round(total / 0.2 / 1000000) * 1000000;
-    if (bidL80 >= 83000000) primary = "수도권 비규제 APT (인천·경기) 또는 비수도권";
+    if (total > 100000000) primary = "수도권 비규제 APT 1순위";
+    else if (bidL80 >= 83000000) primary = "수도권 비규제 인천·부천 추천";
     else primary = "비수도권(지방) 위주 투자 권장";
   } else {
     primary = "비수도권(지방) 위주 투자 — 공시가 2억이하 조건";
