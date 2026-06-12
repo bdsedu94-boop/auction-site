@@ -4908,7 +4908,7 @@ function HomeScreen({
   const [globalLoading, setGlobalLoading] = useState(true);
   const [globalError, setGlobalError] = useState(null);
   useEffect(() => {
-    fetchProperties({ pageSize: 300 })
+    fetchProperties({ pageSize: 100 })
       .then(data => {
         if (data.length > 0) {
           PROPERTIES = data;
@@ -5547,4 +5547,16 @@ function App() {
     onAuth: handleAuth
   });
   if (screen === "survey") return /*#__PURE__*/React.createElement(SurveyScreen, {
-    u
+    user: user,
+    onComplete: handleSurvey
+  });
+  if (screen === "home") return /*#__PURE__*/React.createElement(HomeScreen, {
+    user: user,
+    profile: profile,
+    onLogout: handleLogout,
+    onRescan: () => setScreen("survey")
+  });
+  return null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script></body></html>
